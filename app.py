@@ -2,45 +2,66 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+from sklearn.datasets import load_breast_cancer
 
-# Load model
+# 1. Load Model
 model_data = joblib.load('model_breast_cancer.pkl')
 model = model_data['model']
 feature_names = model_data['feature_names']
 
-st.title("Aplikasi Prediksi Breast Cancer")
-st.write("Dibuat oleh: Abdul Jalil Arliansyah")
+# 2. Ambil Data Asli untuk cari Rata-rata (Biar data kosongnya gak 0)
+data_raw = load_breast_cancer()
+default_values = data_raw.data.mean(axis=0) # Ini nilai rata-rata pasien umum
 
-st.sidebar.header("Input Parameter")
+st.set_page_config(page_title="Prediksi Kanker", layout="wide")
+
+st.title("🩺 Aplikasi Prediksi Breast Cancer")
+st.write("Dibuat oleh: **Abdul Jalil Arliansyah**")
+st.write("Geser slider di sebelah kiri untuk memasukkan data pasien.")
+
+st.sidebar.header("Input Parameter Pasien")
 
 def user_input_features():
-    # Input Slider sederhana
-    radius = st.sidebar.slider('Mean Radius', 0.0, 30.0, 15.0)
-    texture = st.sidebar.slider('Mean Texture', 0.0, 40.0, 20.0)
-    perimeter = st.sidebar.slider('Mean Perimeter', 0.0, 200.0, 90.0)
-    area = st.sidebar.slider('Mean Area', 0.0, 2500.0, 500.0)
-    smoothness = st.sidebar.slider('Mean Smoothness', 0.0, 0.2, 0.1)
+    # Mengambil nilai default rata-rata dulu
+    input_data = default_values.copy()
     
-    # Kita buat array kosong seukuran fitur asli (30 fitur)
-    data = np.zeros((1, 30))
+    # User cuma ubah 5 fitur utama (biar simpel), sisanya pakai rata-rata
+    # Rentang slider disesuaikan dengan nilai min-max asli dataset
+    radius = st.sidebar.slider('Mean Radius (Ukuran)', 6.0, 30.0, float(default_values[0]))
+    texture = st.sidebar.slider('Mean Texture (Tekstur)', 9.0, 40.0, float(default_values[1]))
+    perimeter = st.sidebar.slider('Mean Perimeter (Keliling)', 40.0, 190.0, float(default_values[2]))
+    area = st.sidebar.slider('Mean Area (Luas)', 140.0, 2500.0, float(default_values[3]))
+    smoothness = st.sidebar.slider('Mean Smoothness (Kehalusan)', 0.05, 0.16, float(default_values[4]))
     
-    # Isi 5 fitur pertama dengan input user (sisanya biarkan 0/rata-rata)
-    data[0, 0] = radius
-    data[0, 1] = texture
-    data[0, 2] = perimeter
-    data[0, 3] = area
-    data[0, 4] = smoothness
+    # Update data array dengan input user
+    input_data[0] = radius
+    input_data[1] = texture
+    input_data[2] = perimeter
+    input_data[3] = area
+    input_data[4] = smoothness
     
-    features = pd.DataFrame(data, columns=feature_names)
+    # Ubah jadi dataframe biar model ngerti
+    features = pd.DataFrame([input_data], columns=feature_names)
     return features
 
 input_df = user_input_features()
 
-st.subheader('Hasil Prediksi')
-if st.button('Prediksi Sekarang'):
+# Tampilkan input user
+st.subheader("Data Pasien:")
+st.dataframe(input_df.iloc[:, :5]) # Cuma tampilkan 5 kolom utama biar rapi
+
+st.markdown("---")
+
+# Tombol Prediksi
+if st.button('🔍 Prediksi Sekarang', type='primary'):
     prediction = model.predict(input_df)
+    probabilitas = model.predict_proba(input_df)
+    
+    st.subheader('Hasil Analisis:')
     
     if prediction[0] == 0:
-        st.error('Hasil: Kanker GANAS (Malignant)')
+        st.error(f'⚠️ HASIL: Kanker GANAS (Malignant)')
+        st.write(f"Tingkat Keyakinan Model: {probabilitas[0][0] * 100:.2f}%")
     else:
-        st.success('Hasil: Kanker JINAK (Benign)')
+        st.success(f'✅ HASIL: Kanker JINAK (Benign)')
+        st.write(f"Tingkat Keyakinan Model: {probabilitas[0][1] * 100:.2f}%")
